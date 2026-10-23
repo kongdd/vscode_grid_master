@@ -69,7 +69,7 @@
 |---|---|---|
 | CSV / TSV | `.csv` `.tsv` | Auto-detects delimiter; instant open |
 | Apache Parquet | `.parquet` `.parq` | WASM-based; partitioned directories supported |
-| Apache Arrow / Feather | `.arrow` `.feather` | Direct Arrow IPC decoding |
+| Apache Arrow / Feather | `.arrow` `.feather` | Arrow IPC decoding, including LZ4/ZSTD compression |
 | JSON | `.json` | Right-click → Open with Grid Master |
 | Newline-delimited JSON | `.jsonl` `.ndjson` | Opens as default editor |
 | Excel workbooks | `.xlsx` `.xlsb` `.xls` `.xlsm` `.ods` | First sheet loaded via SheetJS |

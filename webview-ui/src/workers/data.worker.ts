@@ -2,6 +2,7 @@
 // apache-arrow.
 
 import * as arrow from 'apache-arrow';
+import { readArrowIPC } from './arrowReader.js';
 import init, { readParquet } from 'parquet-wasm/esm/parquet_wasm.js';
 import * as XLSX from 'xlsx';
 import type { CellValue, ColumnSchema, FilterSpec, SortSpec, InferredType } from '@shared/schema.js';
@@ -84,18 +85,7 @@ async function handleLoad(buffer: ArrayBuffer, fileType: 'parquet' | 'arrow' | '
     const wasmTable = readParquet(new Uint8Array(buffer));
     table = arrow.tableFromIPC(wasmTable.intoIPCStream());
   } else if (fileType === 'arrow') {
-    try {
-      table = arrow.tableFromIPC(new Uint8Array(buffer));
-    } catch (e) {
-      const msg = String(e);
-      if (msg.includes('codec not found') || msg.includes('compress')) {
-        throw new Error(
-          'This Arrow file uses compression (LZ4/ZSTD) which is not supported in the browser. ' +
-          'Re-export it without compression: feather.write_feather(table, path, compression="uncompressed")'
-        );
-      }
-      throw e;
-    }
+    table = readArrowIPC(new Uint8Array(buffer));
   } else if (fileType === 'excel') {
     const wb = XLSX.read(new Uint8Array(buffer), { type: 'array', dense: true });
     const usedSheet = (sheetName && wb.SheetNames.includes(sheetName)) ? sheetName : wb.SheetNames[0];
@@ -263,7 +253,7 @@ async function handleLoadParts(buffers: ArrayBuffer[], fileType: 'parquet' | 'ar
       const wasmTable = readParquet(new Uint8Array(buf));
       table = arrow.tableFromIPC(wasmTable.intoIPCStream());
     } else {
-      table = arrow.tableFromIPC(new Uint8Array(buf));
+      table = readArrowIPC(new Uint8Array(buf));
     }
     tables.push(table);
     console.log('[GM worker] part', i + 1, '/', buffers.length, 'loaded,', table.numRows, 'rows');

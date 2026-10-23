@@ -21,7 +21,17 @@ type DuckBundles = {
   parquetWasmB64?: string;
 };
 
-type RawBinaryMessage = { type: '__RAW_BINARY__'; payload: { base64?: string; base64Parts?: string[]; singleFileSplit?: boolean; fileType: 'parquet' | 'arrow' | 'json' | 'excel' | 'avro'; jsonFormat?: 'json' | 'ndjson'; duckBundles: DuckBundles } };
+type RawBinaryMessage = {
+  type: '__RAW_BINARY__';
+  payload: {
+    buffers?: ArrayBuffer[];
+    base64?: string;
+    base64Parts?: string[];
+    fileType: 'parquet' | 'arrow' | 'json' | 'excel' | 'avro';
+    jsonFormat?: 'json' | 'ndjson';
+    duckBundles: DuckBundles;
+  };
+};
 type RawRowsMessage   = { type: '__RAW_ROWS__';   payload: { schema: ColumnSchema[]; rows: CellValue[][] } };
 type AnyMessage = HostMessage | RawCsvMessage | RawCsvBatchMessage | RawBinaryMessage | RawRowsMessage;
 
@@ -82,19 +92,16 @@ export function setupMessageHandler(): () => void {
         break;
 
       case '__RAW_BINARY__': {
-        const { fileType, duckBundles, jsonFormat, base64, base64Parts, singleFileSplit } = msg.payload;
-        if (base64Parts && base64Parts.length > 0) {
-          console.log('[GM] __RAW_BINARY__', fileType, 'parts=', base64Parts.length, 'split=', !!singleFileSplit);
-          if (singleFileSplit) {
-            // One logical file was split into base64 chunks to avoid the V8
-            // 512 MB string limit on the host side. Decode each chunk and
-            // concatenate into a single ArrayBuffer before handing to the worker.
-            const combined = concatBase64Chunks(base64Parts);
-            gridStore.loadRawBinary(combined, fileType as 'parquet' | 'arrow' | 'json', duckBundles, jsonFormat);
-          } else {
-            const buffers = base64Parts.map(b64ToArrayBuffer);
-            gridStore.loadRawBinaryParts(buffers, fileType as 'parquet' | 'arrow', duckBundles);
-          }
+        const { fileType, duckBundles, jsonFormat, buffers, base64, base64Parts } = msg.payload;
+        if (buffers?.length === 1) {
+          gridStore.loadRawBinary(buffers[0], fileType, duckBundles, jsonFormat);
+        } else if (buffers && buffers.length > 1) {
+          gridStore.loadRawBinaryParts(buffers, fileType as 'parquet' | 'arrow', duckBundles);
+        } else if (base64Parts && base64Parts.length > 0) {
+          // JSON/Excel split one logical file to avoid V8's string limit.
+          // Decode and concatenate the chunks before handing it to the worker.
+          const combined = concatBase64Chunks(base64Parts);
+          gridStore.loadRawBinary(combined, fileType, duckBundles, jsonFormat);
         } else if (base64) {
           console.log('[GM] __RAW_BINARY__', fileType, 'base64 len', base64.length);
           gridStore.loadRawBinary(b64ToArrayBuffer(base64), fileType, duckBundles, jsonFormat);

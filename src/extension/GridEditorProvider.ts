@@ -415,7 +415,7 @@ export class GridEditorProvider implements vscode.CustomEditorProvider<DocumentM
         } else {
           panel.webview.postMessage({
             type: '__RAW_BINARY__',
-            payload: { base64Parts: jsonParts, singleFileSplit: true, fileType: 'json', jsonFormat: isNdjson ? 'ndjson' : 'json', duckBundles },
+            payload: { base64Parts: jsonParts, fileType: 'json', jsonFormat: isNdjson ? 'ndjson' : 'json', duckBundles },
           });
         }
         send({ type: 'LOADING', payload: { active: false } });
@@ -447,7 +447,7 @@ export class GridEditorProvider implements vscode.CustomEditorProvider<DocumentM
           } else {
             panel.webview.postMessage({
               type: '__RAW_BINARY__',
-              payload: { base64Parts: xlsxParts, singleFileSplit: true, fileType: document.fileType, duckBundles },
+              payload: { base64Parts: xlsxParts, fileType: document.fileType, duckBundles },
             });
           }
           send({ type: 'LOADING', payload: { active: false } });
@@ -502,29 +502,18 @@ export class GridEditorProvider implements vscode.CustomEditorProvider<DocumentM
             },
           });
 
-          if (partFiles.length === 1) {
-            const chunks = GridEditorProvider._encodeBase64Chunked(partFiles[0]);
-            if (chunks.length === 1) {
-              panel.webview.postMessage({
-                type: '__RAW_BINARY__',
-                payload: { base64: chunks[0], fileType: document.fileType, duckBundles },
-              });
-            } else {
-              panel.webview.postMessage({
-                type: '__RAW_BINARY__',
-                payload: { base64Parts: chunks, singleFileSplit: true, fileType: document.fileType, duckBundles },
-              });
-            }
-          } else {
-            // Partitioned dataset: each part is its own file. Encode each
-            // part directly — if any single part exceeds ~512 MB it would
-            // throw, but Spark-style part-files are typically far smaller.
-            const parts = partFiles.map(b => Buffer.from(b).toString('base64'));
-            panel.webview.postMessage({
-              type: '__RAW_BINARY__',
-              payload: { base64Parts: parts, fileType: document.fileType, duckBundles },
-            });
-          }
+          // VS Code >=1.57 transfers ArrayBuffers outside JSON serialization.
+          // Base64 chunks in ONE message still exceed V8's string limit for
+          // large files when VS Code serializes the entire payload as JSON.
+          const buffers = partFiles.map(bytes =>
+            bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
+              ? bytes.buffer
+              : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+          );
+          await panel.webview.postMessage({
+            type: '__RAW_BINARY__',
+            payload: { buffers, fileType: document.fileType, duckBundles },
+          });
           send({ type: 'LOADING', payload: { active: false } });
         }
       }

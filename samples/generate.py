@@ -52,7 +52,7 @@ table = pa.Table.from_pandas(df)
 pq.write_table(table, OUT / "flights.parquet")
 print(f"wrote {OUT / 'flights.parquet'}")
 
-# Arrow / Feather — no compression so apache-arrow JS can read it without codecs
+# Arrow / Feather — uncompressed baseline (compressed fixtures: generate_arrow_compression.py)
 feather.write_feather(table, OUT / "flights.arrow", compression="uncompressed")
 print(f"wrote {OUT / 'flights.arrow'}")
 

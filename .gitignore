@@ -41,6 +41,7 @@ samples/*.parquet
 samples/*.parq
 samples/*.arrow
 samples/*.feather
+samples/*/*.feather
 samples/*.json
 samples/*.jsonl
 samples/*.ndjson
